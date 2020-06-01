@@ -830,6 +830,105 @@ pub fn handle_code_lens(
                 }),
         );
     }
+
+    if world.config.lens.references() {
+        let temp = world
+            .analysis()
+            .file_structure(file_id)?
+            .into_iter()
+            .filter(|it| match it.kind {
+                SyntaxKind::FN_DEF => true,
+                _ => false,
+            })
+            .filter_map(|it| {
+                let position = FilePosition { file_id, offset: it.navigation_range.start() };
+                let scope = None; // all references
+                world.analysis().find_all_refs(position, scope).unwrap_or(None).map(|r| {
+                    let mut lenses = Vec::new();
+                    if r.len() == 1 {
+                        // Only a declaration
+                        return lenses;
+                    }
+
+                    let uri = to_proto::url(&world, file_id).unwrap();
+                    let range = to_proto::range(&line_index, it.node_range);
+                    let position = to_proto::position(&line_index, position.offset);
+
+                    if world.config.lens.method_refs {
+                        let all_locations: Vec<_> = r
+                            .references()
+                            .iter()
+                            .filter_map(|it| to_proto::location(&world, it.file_range).ok())
+                            .collect();
+                        let title = format!("{} references", all_locations.len());
+                        let mut all_refs =
+                            to_show_references_command(&uri, position, all_locations);
+                        all_refs.title = title;
+                        lenses.push(CodeLens { range, command: Some(all_refs), data: None });
+                    }
+
+                    if world.config.lens.tested_by {
+                        let tests: Vec<_> = r
+                            .references()
+                            .iter()
+                            .filter_map(|it| {
+                                world
+                                    .analysis()
+                                    .test_at(FilePosition {
+                                        file_id: it.file_range.file_id,
+                                        offset: it.file_range.range.start(),
+                                    })
+                                    .unwrap_or(None)
+                                    .map(|r| (r, it.file_range.file_id))
+                            })
+                            .dedup_by(|a, b| a.0.range == b.0.range)
+                            .collect_vec();
+
+                        if !tests.is_empty() {
+                            let test_locations = tests
+                                .iter()
+                                .map(|it| {
+                                    to_proto::location(
+                                        &world,
+                                        FileRange { file_id: it.1, range: it.0.name_range },
+                                    )
+                                    .unwrap()
+                                })
+                                .collect_vec();
+
+                            let title = format!("{} tests", tests.len());
+                            let mut test_refs =
+                                to_show_references_command(&uri, position, test_locations);
+                            test_refs.title = title;
+                            lenses.push(CodeLens { range, command: Some(test_refs), data: None });
+
+                            if world.config.lens.run_tested_by {
+                                let test_runnables = tests
+                                    .into_iter()
+                                    .filter_map(|it| to_lsp_runnable(&world, it.1, &it.0).ok())
+                                    .collect_vec();
+                                let run_tests = Command {
+                                    title: "Run all tests".into(),
+                                    command: "rust-analyzer.runMultiple".into(),
+                                    arguments: Some(vec![to_value(test_runnables).unwrap()]),
+                                };
+                                lenses.push(CodeLens {
+                                    range,
+                                    command: Some(run_tests),
+                                    data: None,
+                                });
+                            }
+                        }
+                    }
+
+                    lenses
+                })
+            })
+            .flatten()
+            .collect_vec();
+
+        lenses.extend(temp);
+    }
     Ok(Some(lenses))
 }
 

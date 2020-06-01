@@ -100,6 +100,13 @@ export function runSingle(ctx: Ctx): Cmd {
     };
 }
 
+export function runMultiple(_ctx: Ctx): Cmd {
+    return async (runnables: ra.Runnable[]) => {
+        const msg = runnables.map( it => it.label).join("\n");
+        vscode.window.showInformationMessage(msg);
+    }
+}
+
 export function debug(ctx: Ctx): Cmd {
     let prevDebuggee: RunnableQuickPick | undefined;
 

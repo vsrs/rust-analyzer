@@ -45,7 +45,7 @@ use stdx::format_to;
 use crate::syntax_node::GreenNode;
 
 pub use crate::{
-    algo::InsertPosition,
+    algo::{InsertPosition, find_node_at_offset},
     ast::{AstNode, AstToken},
     parsing::{lex_single_syntax_kind, lex_single_valid_syntax_kind, tokenize, Token},
     ptr::{AstPtr, SyntaxNodePtr},

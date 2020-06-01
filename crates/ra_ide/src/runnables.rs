@@ -6,7 +6,7 @@ use ra_syntax::{
     match_ast, SyntaxNode, TextRange,
 };
 
-use crate::FileId;
+use crate::{FileId, FilePosition};
 use ast::DocCommentsOwner;
 use ra_cfg::CfgExpr;
 use std::fmt::Display;
@@ -14,6 +14,7 @@ use std::fmt::Display;
 #[derive(Debug, Clone)]
 pub struct Runnable {
     pub range: TextRange,
+    pub name_range: TextRange,
     pub kind: RunnableKind,
     pub cfg_exprs: Vec<CfgExpr>,
 }
@@ -95,6 +96,13 @@ pub(crate) fn runnables(db: &RootDatabase, file_id: FileId) -> Vec<Runnable> {
     source_file.syntax().descendants().filter_map(|i| runnable(&sema, i, file_id)).collect()
 }
 
+pub(crate) fn test_at(db: &RootDatabase, position: FilePosition) -> Option<Runnable> {
+    runnables(db, position.file_id)
+        .iter()
+        .find(|it| { it.range.contains_inclusive(position.offset) && matches!(it.kind, RunnableKind::Test{..})})
+        .map(|it| it.clone())
+}
+
 pub(crate) fn runnable(
     sema: &Semantics<RootDatabase>,
     item: SyntaxNode,
@@ -114,7 +122,9 @@ fn runnable_fn(
     fn_def: ast::FnDef,
     file_id: FileId,
 ) -> Option<Runnable> {
-    let name_string = fn_def.name()?.text().to_string();
+    let name = fn_def.name()?;
+    let name_range = name.ident_token()?.text_range();
+    let name_string = name.text().to_string();
 
     let kind = if name_string == "main" {
         RunnableKind::Bin
@@ -171,7 +181,7 @@ fn runnable_fn(
     let cfg_exprs =
         attrs.by_key("cfg").tt_values().map(|subtree| ra_cfg::parse_cfg(subtree)).collect();
 
-    Some(Runnable { range: fn_def.syntax().text_range(), kind, cfg_exprs })
+    Some(Runnable { range: fn_def.syntax().text_range(), name_range, kind, cfg_exprs })
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -223,6 +233,7 @@ fn runnable_mod(
     if !has_test_function {
         return None;
     }
+    let name_range = module.name()?.ident_token()?.text_range();
     let range = module.syntax().text_range();
     let module_def = sema.to_def(&module)?;
 
@@ -237,7 +248,7 @@ fn runnable_mod(
     let cfg_exprs =
         attrs.by_key("cfg").tt_values().map(|subtree| ra_cfg::parse_cfg(subtree)).collect();
 
-    Some(Runnable { range, kind: RunnableKind::TestMod { path }, cfg_exprs })
+    Some(Runnable { range, name_range, kind: RunnableKind::TestMod { path }, cfg_exprs })
 }
 
 #[cfg(test)]

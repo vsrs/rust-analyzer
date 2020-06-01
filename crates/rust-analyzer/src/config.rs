@@ -43,19 +43,36 @@ pub struct LensConfig {
     pub run: bool,
     pub debug: bool,
     pub impementations: bool,
+    pub method_refs: bool,
+    pub tested_by: bool,
+    pub run_tested_by: bool,
 }
 
 impl Default for LensConfig {
     fn default() -> Self {
-        Self { run: true, debug: true, impementations: true }
+        Self {
+            run: true,
+            debug: true,
+            impementations: true,
+            method_refs: true,
+            tested_by: true,
+            run_tested_by: true,
+        }
     }
 }
 
 impl LensConfig {
-    pub const NO_LENS: LensConfig = Self { run: false, debug: false, impementations: false };
+    pub const NO_LENS: LensConfig = Self {
+        run: false,
+        debug: false,
+        impementations: false,
+        method_refs: false,
+        tested_by: false,
+        run_tested_by: false,
+    };
 
     pub fn any(&self) -> bool {
-        self.impementations || self.runnable()
+        self.impementations || self.runnable() || self.references()
     }
 
     pub fn none(&self) -> bool {
@@ -64,6 +81,10 @@ impl LensConfig {
 
     pub fn runnable(&self) -> bool {
         self.run || self.debug
+    }
+
+    pub fn references(&self) -> bool {
+        self.method_refs || self.tested_by
     }
 }
 
@@ -239,6 +260,8 @@ impl Config {
             set(value, "/lens/run", &mut self.lens.run);
             set(value, "/lens/debug", &mut self.lens.debug);
             set(value, "/lens/implementations", &mut self.lens.impementations);
+            set(value, "/lens/methodReferences", &mut self.lens.method_refs);
+            set(value, "/lens/testedBy", &mut self.lens.tested_by);
         } else {
             self.lens = LensConfig::NO_LENS;
         }

@@ -446,6 +446,11 @@ impl Analysis {
         self.with_db(|db| runnables::runnables(db, file_id))
     }
 
+    /// Returns a possible test runnable for the given file position.
+    pub fn test_at(&self, position: FilePosition) -> Cancelable<Option<Runnable>> {
+        self.with_db(|db| runnables::test_at(db, position))
+    }
+
     /// Computes syntax highlighting for the given file
     pub fn highlight(&self, file_id: FileId) -> Cancelable<Vec<HighlightedRange>> {
         self.with_db(|db| syntax_highlighting::highlight(db, file_id, None))
