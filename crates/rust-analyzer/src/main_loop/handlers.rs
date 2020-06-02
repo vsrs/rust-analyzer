@@ -871,16 +871,21 @@ pub fn handle_code_lens(
                         let tests: Vec<_> = r
                             .references()
                             .iter()
-                            .filter_map(|it| {
+                            .filter_map(|reference| {
                                 world
                                     .analysis()
-                                    .test_at(FilePosition {
-                                        file_id: it.file_range.file_id,
-                                        offset: it.file_range.range.start(),
+                                    .test_reference(FilePosition {
+                                        file_id: reference.file_range.file_id,
+                                        offset: reference.file_range.range.start(),
                                     })
                                     .unwrap_or(None)
-                                    .map(|r| (r, it.file_range.file_id))
+                                    .map(|it| match it {
+                                            ra_ide::TestReference::Test(r) => vec![(r, reference.file_range.file_id)],
+                                            ra_ide::TestReference::Helper(_) => Vec::new()
+                                        }
+                                    )
                             })
+                            .flatten()
                             .dedup_by(|a, b| a.0.range == b.0.range)
                             .collect_vec();
 

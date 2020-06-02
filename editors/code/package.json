@@ -471,8 +471,13 @@
                     "type": "boolean",
                     "default": true
                 },
-                "rust-analyzer.lens.implementations": {
-                    "markdownDescription": "Whether to show `Implementations` lens. Only applies when `#rust-analyzer.lens.enable#` is set.",
+                "rust-analyzer.lens.methodReferences": {
+                    "markdownDescription": "Whether to show `Method References` lens. Only applies when `#rust-analyzer.lens.enable#` is set.",
+                    "type": "boolean",
+                    "default": true
+                },
+                "rust-analyzer.lens.testedBy": {
+                    "markdownDescription": "Whether to show `Tested By` lens. Only applies when `#rust-analyzer.lens.enable#` is set.",
                     "type": "boolean",
                     "default": true
                 },

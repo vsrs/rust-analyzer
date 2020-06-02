@@ -19,6 +19,12 @@ pub struct Runnable {
     pub cfg_exprs: Vec<CfgExpr>,
 }
 
+#[derive(Debug, Clone)]
+pub enum TestReference {
+    Test(Runnable),
+    Helper(ast::FnDef),
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct RunnableAction {
     pub run_title: &'static str,
@@ -96,11 +102,23 @@ pub(crate) fn runnables(db: &RootDatabase, file_id: FileId) -> Vec<Runnable> {
     source_file.syntax().descendants().filter_map(|i| runnable(&sema, i, file_id)).collect()
 }
 
-pub(crate) fn test_at(db: &RootDatabase, position: FilePosition) -> Option<Runnable> {
-    runnables(db, position.file_id)
-        .iter()
-        .find(|it| { it.range.contains_inclusive(position.offset) && matches!(it.kind, RunnableKind::Test{..})})
-        .map(|it| it.clone())
+pub(crate) fn test_reference(db: &RootDatabase, position: FilePosition) -> Option<TestReference> {
+    let sema = Semantics::new(db);
+    let source_file = sema.parse(position.file_id);
+    let fn_def = source_file
+        .syntax()
+        .token_at_offset(position.offset)
+        .map(|token| token.parent().ancestors())
+        .kmerge_by(|node1, node2| node1.text_range().len() < node2.text_range().len())
+        .find_map(ast::FnDef::cast)?;
+
+    if has_test_related_attribute(&fn_def) {
+        return Some(TestReference::Test(runnable_fn(&sema, fn_def, position.file_id)?));
+    }
+
+    // check if fn_def is inside a test module and if so, find refefences to the function in tests
+
+    None
 }
 
 pub(crate) fn runnable(
@@ -291,11 +309,13 @@ mod tests {
         [
             Runnable {
                 range: 1..21,
+                name_range: 12..16,
                 kind: Bin,
                 cfg_exprs: [],
             },
             Runnable {
                 range: 22..46,
+                name_range: 33..41,
                 kind: Test {
                     test_id: Path(
                         "test_foo",
@@ -308,6 +328,7 @@ mod tests {
             },
             Runnable {
                 range: 47..81,
+                name_range: 68..76,
                 kind: Test {
                     test_id: Path(
                         "test_foo",
@@ -320,6 +341,7 @@ mod tests {
             },
             Runnable {
                 range: 82..104,
+                name_range: 94..99,
                 kind: Bench {
                     test_id: Path(
                         "bench",
@@ -353,11 +375,13 @@ mod tests {
         [
             Runnable {
                 range: 1..21,
+                name_range: 12..16,
                 kind: Bin,
                 cfg_exprs: [],
             },
             Runnable {
                 range: 22..64,
+                name_range: 56..59,
                 kind: DocTest {
                     test_id: Path(
                         "foo",
@@ -394,11 +418,13 @@ mod tests {
         [
             Runnable {
                 range: 1..21,
+                name_range: 12..16,
                 kind: Bin,
                 cfg_exprs: [],
             },
             Runnable {
                 range: 51..105,
+                name_range: 97..100,
                 kind: DocTest {
                     test_id: Path(
                         "Data::foo",
@@ -430,6 +456,7 @@ mod tests {
         [
             Runnable {
                 range: 1..59,
+                name_range: 13..21,
                 kind: TestMod {
                     path: "test_mod",
                 },
@@ -437,6 +464,7 @@ mod tests {
             },
             Runnable {
                 range: 28..57,
+                name_range: 43..52,
                 kind: Test {
                     test_id: Path(
                         "test_mod::test_foo1",
@@ -473,6 +501,7 @@ mod tests {
         [
             Runnable {
                 range: 23..85,
+                name_range: 27..35,
                 kind: TestMod {
                     path: "foo::test_mod",
                 },
@@ -480,6 +509,7 @@ mod tests {
             },
             Runnable {
                 range: 46..79,
+                name_range: 65..74,
                 kind: Test {
                     test_id: Path(
                         "foo::test_mod::test_foo1",
@@ -518,6 +548,7 @@ mod tests {
         [
             Runnable {
                 range: 41..115,
+                name_range: 45..53,
                 kind: TestMod {
                     path: "foo::bar::test_mod",
                 },
@@ -525,6 +556,7 @@ mod tests {
             },
             Runnable {
                 range: 68..105,
+                name_range: 91..100,
                 kind: Test {
                     test_id: Path(
                         "foo::bar::test_mod::test_foo1",
@@ -558,6 +590,7 @@ mod tests {
         [
             Runnable {
                 range: 1..58,
+                name_range: 44..53,
                 kind: Test {
                     test_id: Path(
                         "test_foo1",
@@ -596,6 +629,7 @@ mod tests {
         [
             Runnable {
                 range: 1..80,
+                name_range: 66..75,
                 kind: Test {
                     test_id: Path(
                         "test_foo1",
@@ -638,5 +672,77 @@ mod tests {
         );
         let runnables = analysis.runnables(pos.file_id).unwrap();
         assert!(runnables.is_empty())
+    }
+
+    #[test]
+    fn test_test_at_root() {
+        let (analysis, pos) = analysis_and_position(
+            r#"
+        //- /lib.rs
+            #[test]
+            fn test() { <|> }
+        }
+        "#,
+        );
+        let test = analysis.test_reference(pos).unwrap();
+        assert_debug_snapshot!(test,
+        @r###"
+        Some(
+            Test(
+                Runnable {
+                    range: 4..30,
+                    name_range: 19..23,
+                    kind: Test {
+                        test_id: Path(
+                            "test",
+                        ),
+                        attr: TestAttr {
+                            ignore: false,
+                        },
+                    },
+                    cfg_exprs: [],
+                },
+            ),
+        )
+        "###);
+        assert!(test.is_some())
+    }
+
+    #[test]
+    fn test_test_at_module() {
+        let (analysis, pos) = analysis_and_position(
+            r#"
+        //- /lib.rs cfg:test
+            #[cfg(test)]
+            mod tests {
+                #[test]
+                fn test_in_mod() { <|> }
+            }
+        }
+        "#,
+        );
+
+        let test = analysis.test_reference(pos).unwrap();
+        assert_debug_snapshot!(test,
+        @r###"
+        Some(
+            Test(
+                Runnable {
+                    range: 41..78,
+                    name_range: 60..71,
+                    kind: Test {
+                        test_id: Path(
+                            "tests::test_in_mod",
+                        ),
+                        attr: TestAttr {
+                            ignore: false,
+                        },
+                    },
+                    cfg_exprs: [],
+                },
+            ),
+        )
+        "###);
+        assert!(test.is_some())
     }
 }

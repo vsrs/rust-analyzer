@@ -69,7 +69,7 @@ pub use crate::{
     hover::{HoverAction, HoverConfig, HoverGotoTypeData, HoverResult},
     inlay_hints::{InlayHint, InlayHintsConfig, InlayKind},
     references::{Declaration, Reference, ReferenceAccess, ReferenceKind, ReferenceSearchResult},
-    runnables::{Runnable, RunnableKind, TestId},
+    runnables::{Runnable, RunnableKind, TestId, TestReference},
     ssr::SsrError,
     syntax_highlighting::{
         Highlight, HighlightModifier, HighlightModifiers, HighlightTag, HighlightedRange,
@@ -446,9 +446,9 @@ impl Analysis {
         self.with_db(|db| runnables::runnables(db, file_id))
     }
 
-    /// Returns a possible test runnable for the given file position.
-    pub fn test_at(&self, position: FilePosition) -> Cancelable<Option<Runnable>> {
-        self.with_db(|db| runnables::test_at(db, position))
+    /// Returns a test runnable or a helper function inside a test mod for the given file position.
+    pub fn test_reference(&self, position: FilePosition) -> Cancelable<Option<TestReference>> {
+        self.with_db(|db| runnables::test_reference(db, position))
     }
 
     /// Computes syntax highlighting for the given file
