@@ -129,6 +129,7 @@ pub struct ClientCapsConfig {
     pub status_notification: bool,
     pub signature_help_label_offsets: bool,
     pub dynamic_watched_files: bool,
+    pub dynamic_doc_sync: bool,
 }
 
 impl Config {
@@ -335,6 +336,10 @@ impl Config {
                         self.completion.allow_snippets(value);
                     }
                 }
+            }
+
+            if let Some(sync) = doc_caps.synchronization.as_ref() {
+                self.client_caps.dynamic_doc_sync = sync.dynamic_registration.unwrap_or(false);
             }
         }
 

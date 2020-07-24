@@ -106,7 +106,7 @@ impl GlobalState {
             );
         };
 
-        if self.config.client_caps.dynamic_watched_files {
+        if self.config.client_caps.dynamic_doc_sync {
             let save_registration_options = lsp_types::TextDocumentSaveRegistrationOptions {
                 include_text: Some(false),
                 text_document_registration_options: lsp_types::TextDocumentRegistrationOptions {
