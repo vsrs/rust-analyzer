@@ -4,7 +4,7 @@ members = ["xtask/", "lib/*", "crates/*"]
 [profile.dev]
 # Disabling debug info speeds up builds a bunch,
 # and we don't rely on it for debugging that much.
-debug = 0
+debug = 2
 
 [profile.dev.package]
 # These speed up local tests.
@@ -21,6 +21,7 @@ debug = 0 # Set this to 1 or 2 to get more useful backtraces in debugger.
 
 [patch.'crates-io']
 # rowan = { path = "../rowan" }
+lsp-types = { path = "../RA/lsp-types" }
 
 # chalk-solve = { path = "../chalk/chalk-solve" }
 # chalk-ir = { path = "../chalk/chalk-ir" }

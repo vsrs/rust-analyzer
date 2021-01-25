@@ -58,7 +58,6 @@ pub fn server_capabilities(client_caps: &ClientCapabilities) -> ServerCapabiliti
             more_trigger_character: Some(vec![".".to_string(), ">".to_string()]),
         }),
         selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
-        semantic_highlighting: None,
         folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
         rename_provider: Some(OneOf::Right(RenameOptions {
             prepare_provider: Some(true),
